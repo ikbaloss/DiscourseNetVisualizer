@@ -1,0 +1,389 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Discourse Network Visualizer</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+        }
+        #title {
+            font-size: 24px;
+            font-weight: bold;
+            margin: 20px 0;
+            text-align: center;
+        }
+        #controls {
+            margin: 10px 0;
+            display: flex;
+            gap: 20px;
+        }
+        #graph-container {
+            flex: 1;
+            width: 100%;
+            overflow: hidden;
+            position: relative;
+        }
+        svg {
+            width: 100%;
+            height: 100%;
+            background: #f5f5f5;
+        }
+        .node {
+            stroke: #000;
+            stroke-width: 1.5px;
+        }
+        .edge {
+            fill: none;
+            stroke-width: 2px;
+        }
+        .label {
+            font-size: 12px;
+            fill: #000;
+            pointer-events: none;
+        }
+        .tooltip {
+            position: absolute;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            pointer-events: none;
+        }
+        #file-input {
+            margin: 10px 0;
+        }
+        select {
+            padding: 5px;
+            font-size: 14px;
+        }
+        select:disabled {
+            opacity: 0.5;
+        }
+    </style>
+</head>
+<body>
+    <div id="title">Discourse Network Visualizer</div>
+    <input type="file" id="file-input" accept=".gml">
+    <div id="controls">
+        <select id="actor-select" disabled>
+            <option value="">Select an Actor</option>
+        </select>
+        <select id="concept-select" disabled>
+            <option value="">Select a Concept</option>
+        </select>
+    </div>
+    <div id="graph-container"></div>
+    <script>
+        // Set up SVG and container
+        const width = window.innerWidth;
+        const height = window.innerHeight - 150; // Adjust for title, file input, and controls
+        const svg = d3.select("#graph-container")
+            .append("svg")
+            .attr("width", width)
+            .attr("height", height);
+
+        // Add zoom behavior for panning
+        let currentTransform = d3.zoomIdentity;
+        const zoom = d3.zoom()
+            .scaleExtent([0.1, 4])
+            .on("zoom", (event) => {
+                currentTransform = event.transform;
+                g.attr("transform", currentTransform);
+            });
+        svg.call(zoom);
+
+        // Create group for graph elements
+        const g = svg.append("g");
+
+        // Tooltip for hover interactions
+        const tooltip = d3.select("body")
+            .append("div")
+            .attr("class", "tooltip")
+            .style("opacity", 0);
+
+        // Parse GML file
+        function parseGML(text) {
+            const nodes = [];
+            const edges = [];
+            let currentNode = null;
+            let currentEdge = null;
+            let inNode = false;
+            let inEdge = false;
+
+            const lines = text.split('\n');
+            for (let line of lines) {
+                line = line.trim();
+                if (line.startsWith("node [")) {
+                    inNode = true;
+                    currentNode = {};
+                } else if (line.startsWith("edge [")) {
+                    inEdge = true;
+                    currentEdge = {};
+                } else if (line === "]") {
+                    if (inNode && currentNode.id) {
+                        nodes.push(currentNode);
+                        inNode = false;
+                        currentNode = null;
+                    } else if (inEdge && currentEdge.source && currentEdge.target) {
+                        edges.push(currentEdge);
+                        inEdge = false;
+                        currentEdge = null;
+                    }
+                } else if (inNode) {
+                    const match = line.match(/(\w+)\s+"?([^"]*)"?/);
+                    if (match) {
+                        currentNode[match[1]] = match[2];
+                    }
+                } else if (inEdge) {
+                    const match = line.match(/(\w+)\s+"?([^"]*)"?/);
+                    if (match) {
+                        currentEdge[match[1]] = match[2];
+                    }
+                }
+            }
+
+            return { nodes, edges };
+        }
+
+        // Populate dropdown menus
+        function populateDropdowns(nodes) {
+            const actorSelect = d3.select("#actor-select");
+            const conceptSelect = d3.select("#concept-select");
+
+            // Clear existing options
+            actorSelect.selectAll("option:not(:first-child)").remove();
+            conceptSelect.selectAll("option:not(:first-child)").remove();
+
+            // Filter and sort nodes
+            const actors = nodes.filter(d => d.type === "Actor")
+                .sort((a, b) => d3.ascending(a.label || a.id, b.label || b.id));
+            const concepts = nodes.filter(d => d.type === "Concept")
+                .sort((a, b) => d3.ascending(a.label || a.id, b.label || b.id));
+
+            // Add options to dropdowns
+            actorSelect.selectAll("option.actor")
+                .data(actors)
+                .enter()
+                .append("option")
+                .attr("class", "actor")
+                .attr("value", d => d.id)
+                .text(d => d.label || d.id);
+
+            conceptSelect.selectAll("option.concept")
+                .data(concepts)
+                .enter()
+                .append("option")
+                .attr("class", "concept")
+                .attr("value", d => d.id)
+                .text(d => d.label || d.id);
+
+            // Enable dropdowns
+            actorSelect.property("disabled", false);
+            conceptSelect.property("disabled", false);
+        }
+
+        // Center node in view
+        function centerNode(node) {
+            if (!node) return;
+
+            const scale = currentTransform.k || 1;
+            const x = -node.x * scale + width / 2;
+            const y = -node.y * scale + height / 2;
+
+            svg.transition()
+                .duration(750)
+                .call(zoom.transform, d3.zoomIdentity.translate(x, y).scale(scale));
+        }
+
+        // Handle file input
+        d3.select("#file-input").on("change", function(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const text = e.target.result;
+                const graphData = parseGML(text);
+                populateDropdowns(graphData.nodes);
+                renderGraph(graphData);
+            };
+            reader.readAsText(file);
+        });
+
+        // Handle dropdown selection
+        d3.select("#actor-select").on("change", function(event) {
+            const nodeId = this.value;
+            const node = data.nodes.find(d => d.id === nodeId);
+            centerNode(node);
+        });
+
+        d3.select("#concept-select").on("change", function(event) {
+            const nodeId = this.value;
+            const node = data.nodes.find(d => d.id === nodeId);
+            centerNode(node);
+        });
+
+        // Render graph
+        let data = { nodes: [], edges: [] }; // Store data for dropdown handlers
+        function renderGraph(graphData) {
+            data = graphData; // Update global data
+            // Clear previous graph
+            g.selectAll("*").remove();
+
+            // Initialize force simulation
+            const simulation = d3.forceSimulation(data.nodes)
+                .force("link", d3.forceLink(data.edges).id(d => d.id).distance(100))
+                .force("charge", d3.forceManyBody().strength(-200))
+                .force("center", d3.forceCenter(width / 2, height / 2));
+
+            // Draw edges
+            const link = g.selectAll(".edge")
+                .data(data.edges)
+                .enter()
+                .append("line")
+                .attr("class", "edge")
+                .attr("stroke", d => d.agreement === "Yes" ? "blue" : d.agreement === "No" ? "red" : "#ccc")
+                .on("mouseover", function(event, d) {
+                    if (d.statement) {
+                        tooltip.transition()
+                            .duration(200)
+                            .style("opacity", 0.9);
+                        tooltip.html(d.statement)
+                            .style("left", (event.pageX + 10) + "px")
+                            .style("top", (event.pageY - 28) + "px");
+                    }
+                })
+                .on("mouseout", function() {
+                    tooltip.transition()
+                        .duration(500)
+                        .style("opacity", 0);
+                })
+                .call(d3.drag()
+                    .on("start", dragstarted)
+                    .on("drag", dragged)
+                    .on("end", dragended));
+
+            // Draw nodes
+            const node = g.selectAll(".node")
+                .data(data.nodes)
+                .enter()
+                .append("circle")
+                .attr("class", "node")
+                .attr("r", 8)
+                .attr("fill", d => d.type === "Actor" ? "brown" : d.type === "Concept" ? "green" : "#ccc")
+                .on("mouseover", function(event, d) {
+                    if (d.description) {
+                        tooltip.transition()
+                            .duration(200)
+                            .style("opacity", 0.9);
+                        tooltip.html(d.description)
+                            .style("left", (event.pageX + 10) + "px")
+                            .style("top", (event.pageY - 28) + "px");
+                    }
+                })
+                .on("mouseout", function() {
+                    tooltip.transition()
+                        .duration(500)
+                        .style("opacity", 0);
+                })
+                .call(d3.drag()
+                    .on("start", dragstarted)
+                    .on("drag", dragged)
+                    .on("end", dragended));
+
+            // Draw node labels
+            const label = g.selectAll(".label")
+                .data(data.nodes)
+                .enter()
+                .append("text")
+                .attr("class", "label")
+                .attr("dx", 12)
+                .attr("dy", ".35em")
+                .text(d => d.label || d.id);
+
+            // Update positions on tick
+            simulation.on("tick", () => {
+                link
+                    .attr("x1", d => d.source.x)
+                    .attr("y1", d => d.source.y)
+                    .attr("x2", d => d.target.x)
+                    .attr("y2", d => d.target.y);
+
+                node
+                    .attr("cx", d => d.x)
+                    .attr("cy", d => d.y);
+
+                label
+                    .attr("x", d => d.x)
+                    .attr("y", d => d.y);
+            });
+
+            // Drag functions
+            function dragstarted(event, d) {
+                if (!event.active) simulation.alphaTarget(0.3).restart();
+                d.fx = d.x;
+                d.fy = d.y;
+            }
+
+            function dragged(event, d) {
+                d.fx = event.x;
+                d.fy = event.y;
+            }
+
+            function dragended(event, d) {
+                if (!event.active) simulation.alphaTarget(0);
+                d.fx = null;
+                d.fy = null;
+            }
+        }
+    </script>
+</body>
+</html>

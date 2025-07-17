@@ -275,26 +275,39 @@
             <span id="close-prompt-popup">✖</span>
         </div>
         <div id="prompt-content">
-Create a Discourse Network Analyzer (DNA) graph in GML format, following the structure commonly used in the software developed by Philip Leifeld. The graph must represent the dynamics of discourse in the sources (the attached documents), and include both nodes and edges with the following specifications:
+Instructions for Constructing Nodes and Edges
+Identify all actors, including their positions or affiliated organizations, along with their statements.
+Categorize each statement based on its content.
+Ensure that all extracted information—including actor name, position/organization, statement, and category—does not contain any quotation marks, whether double ("), single ('), or curly (“ ” ‘ ’).
+Assign the cleaned and categorized information to the following node and edge attributes of a gml graph:
 
-Each node must be connected to at least one edge, and contain the following attributes:
-`id`: a unique integer used as the identifier for the node.
-`label`:
-- For nodes of type "Actor": the name of the actor.
-- For nodes of type "Concept": the name of the concept.
-`type`: either "Actor" or "Concept".
-`description`:
-- Empty string ("") for "Concept" nodes.
-- For "Actor" nodes, it must describe the actor’s position and/or organizational affiliation.
+Node Structure
+Each node must include the following attributes:
+id: A unique integer identifier for the node.
+type: Either "Actor" or "Concept".
+label:
+- For "Actor" nodes: the actor's name.
+- For "Concept" nodes: the category label.
 
-Each edge must connect a source node of type "Actor" to a target node of type "Concept", must contain the following attributes:
-`source`: the `id` of the "Actor" node.
-`target`: the `id` of the "Concept" node.
-`statement`: the actual statement or claim made by the actor in reference to the concept.
-`reference`: the name of the file or source from which the statement was derived.
-`agreement`: indicates the attitude of the "Actor" toward the "Concept". The value is "Yes" if the actor agrees with or expresses a positive attitude toward the concept. The value is "No" if the actor opposes or expresses a negative attitude toward the concept.
+description:
+- For "Actor" nodes: the actor’s position or affiliated organization.
+- For "Concept" nodes: an empty string ("").
 
-Logical Constraints: Every node of type "Actor" must be connected to at least one "Concept" node via an edge that includes the actor's statement. Edges must not connect nodes of the same type or form isolated structures (e.g., edges without valid source and target nodes). Each edge reflects a discursive claim made by an actor about a concept—supporting the representation of argumentative structure and actor alignment within the discourse.
+Edge Structure
+Each edge must:
+Connect a source node of type "Actor" to a target node of type "Concept".
+Include the following attributes to the edge:
+source: The id of the "Actor" node.
+target: The id of the "Concept" node.
+statement: The actor’s statement referring to the concept, which reflects the assigned category.
+reference: The filename or source from which the statement was taken.
+agreement: Indicates the actor’s stance toward the concept:
+ - "Yes" if the actor agrees with or supports the concept.
+ - "No" if the actor opposes or rejects the concept.
+
+Connectivity Rules
+Every "Actor" node must be connected to at least one "Concept" node via an edge.
+There must be no isolated nodes; all nodes must be part of the network through at least one connection.
         </div>
     </div>
     <script>

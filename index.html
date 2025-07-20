@@ -275,39 +275,63 @@
             <span id="close-prompt-popup">✖</span>
         </div>
         <div id="prompt-content">
-Instructions for Constructing Nodes and Edges
+Instructions for Constructing GML Graph Nodes and Edges
+
+Data Extraction
+
 Identify all actors, including their positions or affiliated organizations, along with their statements.
+
+Do not translate any of the extracted information.
+
 Categorize each statement based on its content.
+
 Ensure that all extracted information—including actor name, position/organization, statement, and category—does not contain any quotation marks, whether double ("), single ('), or curly (“ ” ‘ ’).
-Assign the cleaned and categorized information to the following node and edge attributes of a gml graph:
 
 Node Structure
 Each node must include the following attributes:
+
 id: A unique integer identifier for the node.
+
 type: Either "Actor" or "Concept".
+
 label:
-- For "Actor" nodes: the actor's name.
-- For "Concept" nodes: the category label.
+
+For "Actor" nodes: the actor’s name.
+
+For "Concept" nodes: the category label.
 
 description:
-- For "Actor" nodes: the actor’s position or affiliated organization.
-- For "Concept" nodes: an empty string ("").
+
+For "Actor" nodes: the actor’s position or affiliated organization.
+
+For "Concept" nodes: an empty string ("").
 
 Edge Structure
 Each edge must:
+
 Connect a source node of type "Actor" to a target node of type "Concept".
-Include the following attributes to the edge:
+
+Include the following attributes:
+
 source: The id of the "Actor" node.
+
 target: The id of the "Concept" node.
-statement: The actor’s statement referring to the concept, which reflects the assigned category.
+
+statement: The actor’s original statement referring to the concept, aligned with the assigned category. The statement must remain in its original language (do not translate).
+
 reference: The filename or source from which the statement was taken.
+
 agreement: Indicates the actor’s stance toward the concept:
- - "Yes" if the actor agrees with or supports the concept.
- - "No" if the actor opposes or rejects the concept.
+
+"Yes" if the actor agrees with or supports the concept.
+
+"No" if the actor opposes or rejects the concept.
 
 Connectivity Rules
-Every "Actor" node must be connected to at least one "Concept" node via an edge.
-There must be no isolated nodes; all nodes must be part of the network through at least one connection.
+
+Ensure that the source attribute of each edge refers to an existing node of type "Actor", and the target attribute refers to an existing node of type "Concept".
+
+Remove any nodes that are not connected by at least one edge; all nodes must be part of the network through at least one connection.
         </div>
     </div>
     <script>

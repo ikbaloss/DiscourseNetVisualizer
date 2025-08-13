@@ -805,23 +805,27 @@ Remove any nodes that are not connected by at least one edge; all nodes must be 
             const x = -((edge.source.x + edge.target.x) / 2) * scale + width / 2;
             const y = -((edge.source.y + edge.target.y) / 2) * scale + height / 2;
         
-            // Center the edge
+            // Center the view on the edge midpoint
             svg.transition()
                 .duration(750)
                 .call(zoom.transform, d3.zoomIdentity.translate(x, y).scale(scale));
         
-            // Select the correct edge path
+            // Match the edge in the rendered selection using IDs, not object refs
             const edgeElement = d3.selectAll(".link")
-                .filter(d => d.source.id === edge.source.id && d.target.id === edge.target.id);
+                .filter(d =>
+                    (d.source.id === edge.source.id && d.target.id === edge.target.id) ||
+                    (d.source.id === edge.target.id && d.target.id === edge.source.id)
+                );
         
-            // Get the current stroke color (from style)
+            if (edgeElement.empty()) return;
+        
             const originalColor = edgeElement.style("stroke");
         
             let blinkCount = 0;
             const blinkInterval = setInterval(() => {
                 edgeElement.style("stroke", blinkCount % 2 === 0 ? "yellow" : originalColor);
                 blinkCount++;
-                if (blinkCount > 5) { // ~3 seconds
+                if (blinkCount > 5) { // ~3 seconds total
                     clearInterval(blinkInterval);
                     edgeElement.style("stroke", originalColor);
                 }

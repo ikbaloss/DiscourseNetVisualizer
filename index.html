@@ -808,33 +808,12 @@ Remove any nodes that are not connected by at least one edge; all nodes must be 
             // Center on the edge
             svg.transition()
                 .duration(750)
-                .call(zoom.transform, d3.zoomIdentity.translate(x, y).scale(scale));
-        
-            // Build an ID string for matching edges regardless of object reference
-            const srcId = typeof edge.source === "object" ? edge.source.id : edge.source;
-            const tgtId = typeof edge.target === "object" ? edge.target.id : edge.target;
-        
-            const edgeElement = d3.selectAll(".link").filter(d => {
-                const sId = typeof d.source === "object" ? d.source.id : d.source;
-                const tId = typeof d.target === "object" ? d.target.id : d.target;
-                return (sId === srcId && tId === tgtId) || (sId === tgtId && tId === srcId);
-            });
-        
-            if (edgeElement.empty()) return;
-        
-            const originalColor = edgeElement.attr("stroke") || "black";
-        
-            let blinkCount = 0;
-            const blinkInterval = setInterval(() => {
-                edgeElement.attr("stroke", blinkCount % 2 === 0 ? "yellow" : originalColor);
-                blinkCount++;
-                if (blinkCount > 5) { // ~3 seconds
-                    clearInterval(blinkInterval);
-                    edgeElement.attr("stroke", originalColor);
-                }
-            }, 500);
+                .call(zoom.transform, d3.zoomIdentity.translate(x, y).scale(scale))
+                .on("end", () => {
+                    // After centering is complete, highlight the edge
+                    highlightEdge(edge);
+                });
         }
-
         
         // Handle file input
         let originalData = { nodes: [], edges: [], references: [] };

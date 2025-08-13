@@ -805,33 +805,37 @@ Remove any nodes that are not connected by at least one edge; all nodes must be 
             const x = -((edge.source.x + edge.target.x) / 2) * scale + width / 2;
             const y = -((edge.source.y + edge.target.y) / 2) * scale + height / 2;
         
-            // Center the view on the edge midpoint
+            // Center on the edge
             svg.transition()
                 .duration(750)
                 .call(zoom.transform, d3.zoomIdentity.translate(x, y).scale(scale));
         
-            // Match the edge in the rendered selection using IDs, not object refs
-            const edgeElement = d3.selectAll(".link")
-                .filter(d =>
-                    (d.source.id === edge.source.id && d.target.id === edge.target.id) ||
-                    (d.source.id === edge.target.id && d.target.id === edge.source.id)
-                );
+            // Build an ID string for matching edges regardless of object reference
+            const srcId = typeof edge.source === "object" ? edge.source.id : edge.source;
+            const tgtId = typeof edge.target === "object" ? edge.target.id : edge.target;
+        
+            const edgeElement = d3.selectAll(".link").filter(d => {
+                const sId = typeof d.source === "object" ? d.source.id : d.source;
+                const tId = typeof d.target === "object" ? d.target.id : d.target;
+                return (sId === srcId && tId === tgtId) || (sId === tgtId && tId === srcId);
+            });
         
             if (edgeElement.empty()) return;
         
-            const originalColor = edgeElement.style("stroke");
+            const originalColor = edgeElement.attr("stroke") || "black";
         
             let blinkCount = 0;
             const blinkInterval = setInterval(() => {
-                edgeElement.style("stroke", blinkCount % 2 === 0 ? "yellow" : originalColor);
+                edgeElement.attr("stroke", blinkCount % 2 === 0 ? "yellow" : originalColor);
                 blinkCount++;
-                if (blinkCount > 5) { // ~3 seconds total
+                if (blinkCount > 5) { // ~3 seconds
                     clearInterval(blinkInterval);
-                    edgeElement.style("stroke", originalColor);
+                    edgeElement.attr("stroke", originalColor);
                 }
             }, 500);
         }
 
+        
         // Handle file input
         let originalData = { nodes: [], edges: [], references: [] };
         d3.select("#file-input").on("change", function(event) {
